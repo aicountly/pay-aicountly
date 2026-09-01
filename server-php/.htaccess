@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------
+# Pay API — Apache config for <document root>/api on cPanel.
+#
+# This file is deployed with the API. The web build ships its own .htaccess for
+# the document root, and those rules stop applying once these take over.
+# ---------------------------------------------------------------------------
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # No RewriteBase on purpose: Apache resolves the substitution against whatever
+  # directory this file sits in, so the API works at <docroot>/api and at the
+  # root of a dedicated vhost without editing this line. index.php strips its
+  # own mount point to match.
+
+  # Apache does not hand the Authorization header to PHP under CGI/FastCGI
+  # unless it is copied explicitly. Without this the relay forwards no
+  # credential, the portal answers 401, and sign-in fails for everyone with
+  # nothing in the logs to explain it. (Hosts on Apache 2.4.13+ can use
+  # `CGIPassAuth On` instead; this form works everywhere.)
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  # Everything that is not a real file goes to the front controller.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.php [L]
+</IfModule>
+
+# --- Hardening -------------------------------------------------------------
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header always set Cache-Control "no-store"
+</IfModule>
+
+# The API's .env sits inside the document root, so without this it would be
+# fetchable over HTTP at https://pay.aicountly.com/api/.env.
+RedirectMatch 404 /\.(?!well-known)

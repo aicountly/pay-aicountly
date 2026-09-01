@@ -1,0 +1,332 @@
+# ---------------------------------------------------------------------------
+# Deploy Pay to cPanel Production  (https://pay.aicountly.com)
+#
+# MANUAL ONLY. The single trigger is workflow_dispatch — merging or pushing
+# never deploys. Add no push/pull_request/schedule triggers to this file.
+#
+# What it does: builds web/ on the runner, rsyncs the built dist/ over SSH to
+# the cPanel document root, then rsyncs server-php/ to the api/ folder inside
+# that same document root. No source, no node_modules, and no .env ever reach
+# the server.
+# ---------------------------------------------------------------------------
+name: Deploy to cPanel Production
+
+on:
+  workflow_dispatch:
+
+# Never let two deploys to the same target overlap.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Fail before doing any work if the deploy target is not fully
+      # configured. Without this an unset secret would silently expand to an
+      # empty string, and `rsync --delete` against "user@host:/" would target
+      # the filesystem root instead of the document root.
+      - name: Validate deployment configuration
+        env:
+          SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          REMOTE_ROOT: ${{ secrets.PROD_SSH_REMOTE_ROOT }}
+        run: |
+          missing=""
+          [ -n "$SSH_HOST" ]        || missing="$missing PROD_SSH_HOST"
+          [ -n "$SSH_USER" ]        || missing="$missing PROD_SSH_USER"
+          [ -n "$SSH_PRIVATE_KEY" ] || missing="$missing PROD_SSH_PRIVATE_KEY"
+          [ -n "$REMOTE_ROOT" ]     || missing="$missing PROD_SSH_REMOTE_ROOT"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing or empty required secret(s):$missing"
+            exit 1
+          fi
+
+          # A relative remote root is normal on cPanel: rsync resolves it
+          # against the SSH user's home directory, so "public_html" means
+          # /home/<user>/public_html. Both forms are accepted.
+          #
+          # What must be refused is anything that resolves to the home
+          # directory itself or climbs out of it, because the deploy runs with
+          # --delete and would take the rest of the account with it.
+          case "$REMOTE_ROOT" in
+            ''|.|./|'~'|'~/')
+              echo "::error::PROD_SSH_REMOTE_ROOT points at the home directory itself, which --delete would wipe. Use the document root instead, e.g. public_html"
+              exit 1
+              ;;
+            /|/home|/home/|/root|/var|/etc|/usr|/bin|/sbin|/boot|/opt)
+              echo "::error::PROD_SSH_REMOTE_ROOT is a system directory and is unsafe for a --delete deploy"
+              exit 1
+              ;;
+            ..|../*|*/../*|*/..)
+              echo "::error::PROD_SSH_REMOTE_ROOT must not contain a parent-directory reference"
+              exit 1
+              ;;
+          esac
+
+          case "$REMOTE_ROOT" in
+            /*) echo "Deploy target validated (absolute path)." ;;
+            *)  echo "Deploy target validated ('$REMOTE_ROOT', relative to the SSH user's home directory)." ;;
+          esac
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build
+        env:
+          # Build-time config. Vite inlines VITE_* into the bundle, so these are
+          # public values — never put a secret here.
+          #
+          # PROD_API_BASE_URL (Settings > Secrets and variables > Actions >
+          # Variables) is an OPTIONAL override. Left unset, the app calls its own
+          # origin + /api, which is exactly where the "Deploy server-php to the
+          # api folder" step below puts it.
+          VITE_API_BASE_URL: ${{ vars.PROD_API_BASE_URL }}
+          VITE_APP_NAME: Pay
+          VITE_APP_ENV: production
+        working-directory: web
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "::notice::PROD_API_BASE_URL is not set — the app will call https://pay.aicountly.com/api (same origin), which is where this workflow deploys server-php below."
+          else
+            echo "Building against API base URL: $VITE_API_BASE_URL"
+          fi
+          npm run build
+
+      - name: Verify build output
+        run: |
+          test -f web/dist/index.html || { echo "::error::web/dist/index.html missing — build produced no output"; exit 1; }
+          test -f web/dist/.htaccess || echo "::warning::web/dist/.htaccess missing — SPA routes may 404 on refresh, which breaks the /auth/callback landing"
+          # Belt and braces: a .env must never be shipped.
+          if find web/dist -name '.env*' | grep -q .; then
+            echo "::error::an .env file ended up in web/dist — refusing to deploy"
+            exit 1
+          fi
+          test -d server-php || { echo "::error::server-php/ is missing — the API deploy step below has nothing to deploy"; exit 1; }
+          test -f server-php/index.php || { echo "::error::server-php/index.php missing — the API has no front controller"; exit 1; }
+          # The API's .env is created once on the server and must never be
+          # committed — a committed one would be uploaded over the real file.
+          if find server-php -name '.env' | grep -q .; then
+            echo "::error::server-php contains a committed .env — refusing to deploy. The API .env belongs on the server only."
+            exit 1
+          fi
+          # A syntax error here is a 500 on every endpoint, and rsync would ship
+          # it happily. Cheaper to catch on the runner.
+          find server-php -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # A truncated paste or CRLF line endings produce a key file that ssh
+          # silently ignores, which then surfaces only as "Permission denied
+          # (publickey)". Catch it here where the cause is still obvious.
+          sed -i 's/\r$//' ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > ~/.ssh/deploy_key.pub 2>/dev/null; then
+            echo "::error::PROD_SSH_PRIVATE_KEY is not a usable OpenSSH private key. Copy the whole file, including the BEGIN and END lines."
+            exit 1
+          fi
+
+          # Fingerprint and public key are not secret, and they are what you
+          # compare against the server to confirm the right key is authorised.
+          echo "Deploy key: $(ssh-keygen -l -f ~/.ssh/deploy_key)"
+          echo "Public key that must appear in the cPanel user's ~/.ssh/authorized_keys:"
+          sed 's/^/    /' ~/.ssh/deploy_key.pub
+
+          # Pin the host key so deploys fail closed rather than trusting
+          # whatever answers on that address.
+          if ! ssh-keyscan -p "${SSH_PORT:-22}" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/tmp/keyscan.err; then
+            echo "::error::ssh-keyscan could not reach the host on the configured port."
+            sed 's/^/    /' /tmp/keyscan.err
+            exit 1
+          fi
+          if [ ! -s ~/.ssh/known_hosts ]; then
+            echo "::error::The host returned no SSH host key. Check PROD_SSH_HOST and PROD_SSH_PORT."
+            exit 1
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+          # Older cPanel / CloudLinux hosts offer only RSA with SHA-1, which
+          # OpenSSH 8.8+ (what the runner ships) refuses by default. Without
+          # these two options such a server rejects a perfectly valid key with
+          # exactly the same "Permission denied (publickey)" message.
+          cat > ~/.ssh/config <<CFG
+          Host deploy-target
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port ${SSH_PORT:-22}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            PubkeyAcceptedAlgorithms +ssh-rsa
+            HostKeyAlgorithms +ssh-rsa
+            BatchMode yes
+          CFG
+          chmod 600 ~/.ssh/config
+
+      # Authenticate before touching the document root, so a key problem is
+      # reported as a key problem rather than as an rsync exit code.
+      - name: Verify SSH authentication
+        run: |
+          if ssh deploy-target 'echo connected' > /tmp/ssh.out 2>/tmp/ssh.err; then
+            echo "SSH authentication succeeded."
+            exit 0
+          fi
+
+          echo "::error::SSH authentication to the cPanel host failed. The server refused the deploy key."
+          echo "--- ssh output ---"
+          sed 's/^/    /' /tmp/ssh.err
+
+          # The server's half of the exchange is the only thing that separates
+          # "key is not authorised" from "server cannot use this key type".
+          # They produce an identical Permission denied without it.
+          ssh -vvv deploy-target 'true' >/dev/null 2>/tmp/ssh.verbose || true
+
+          echo "--- server version and key negotiation ---"
+          grep -iE 'remote software version|remote protocol version|Offering public key|Server accepts key|send_pubkey_test|Authentications that can continue|no mutual signature|Unable to negotiate' \
+            /tmp/ssh.verbose | sed 's/^/    /' || echo "    (no negotiation detail captured)"
+
+          echo "--- host key types this server published ---"
+          awk '{print $2}' ~/.ssh/known_hosts | sort -u | sed 's/^/    /'
+
+          cat <<'HINT'
+
+          Most common causes, in the order worth checking:
+
+            1. The public key is not authorised for this cPanel user.
+               cPanel imports and authorises as two separate actions: after
+               importing, open SSH Access > Manage SSH Keys and click Manage,
+               then Authorize. An imported-but-unauthorised key fails exactly
+               like this.
+
+            2. The server is too old to understand the key type. Look for the
+               remote software version above: OpenSSH below 6.5 has no Ed25519
+               support at all, so it ignores an Ed25519 key and reports this
+               same error. Generate an RSA key instead (ssh-keygen -t rsa -b
+               4096), authorise that, and store it in the secret. cPanel's own
+               key generator defaults to RSA for this reason.
+
+            3. The public key printed in the Configure SSH step does not match
+               the one in the cPanel user's ~/.ssh/authorized_keys. Compare
+               them character for character.
+
+            4. PROD_SSH_USER is not the cPanel account username.
+
+            5. The private key stored in the secret belongs to a different key
+               pair than the public key on the server.
+
+            6. Permissions on the server: ~/.ssh must be 700 and
+               ~/.ssh/authorized_keys 600, owned by the account. sshd silently
+               refuses keys when these are too open.
+
+          HINT
+          exit 1
+
+      - name: Deploy web build to the document root
+        env:
+          REMOTE_ROOT: ${{ secrets.PROD_SSH_REMOTE_ROOT }}
+        run: |
+          # Connection settings come from ~/.ssh/config (host deploy-target),
+          # written in the Configure SSH step.
+          #
+          # Trailing slash on web/dist/ copies the *contents* into REMOTE_ROOT.
+          #
+          # --delete keeps the docroot free of files removed from the build.
+          # The excludes below protect paths that are not part of the web build
+          # and must survive a deploy:
+          #   api/         — the PHP backend lives inside the document root and
+          #                  is deployed by the next step. Without this exclude
+          #                  this step would delete the entire API.
+          #   .env         — server-side env file, if one is placed there
+          #   .well-known/ — Let's Encrypt / AutoSSL validation; deleting it
+          #                  breaks certificate renewal
+          #   cgi-bin/     — cPanel-managed, present in every docroot
+          #   .git*        — never publish repository metadata
+          rsync -avz --delete \
+            --exclude='api/' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='.git*' \
+            --exclude='.well-known/' \
+            --exclude='cgi-bin/' \
+            --chmod=D755,F644 \
+            -e ssh \
+            web/dist/ "deploy-target:$REMOTE_ROOT/"
+
+      - name: Deploy server-php to the api folder
+        env:
+          REMOTE_ROOT: ${{ secrets.PROD_SSH_REMOTE_ROOT }}
+        run: |
+          # The API's .env is created once by hand on the server and read at
+          # runtime on every request, unlike the web build. It must never be
+          # uploaded and must never be deleted, hence the excludes below
+          # combined with --delete.
+          rsync -avz --delete \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='.git*' \
+            --chmod=D755,F644 \
+            -e ssh \
+            server-php/ "deploy-target:$REMOTE_ROOT/api/"
+
+          echo "Deployed server-php to \$REMOTE_ROOT/api/"
+          echo "::notice::If this is the first API deploy, create api/.env on the server from server-php/.env.example — it is never uploaded."
+
+      # A deployed API that cannot answer is worth knowing about now rather
+      # than from the app's login screen. /health needs no credentials.
+      - name: Smoke-test the deployed API
+        run: |
+          url="https://pay.aicountly.com/api/health"
+          code=$(curl -fsS -o /tmp/health.json -w '%{http_code}' --max-time 20 "$url" || echo "000")
+          if [ "$code" = "200" ]; then
+            echo "GET $url → 200"
+            cat /tmp/health.json
+          else
+            echo "::warning::GET $url returned $code. If this is the first deploy, check that the subdomain's document root is the one in PROD_SSH_REMOTE_ROOT and that api/.env exists."
+          fi
+
+      - name: Clean up SSH credentials
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/deploy_key.pub ~/.ssh/config
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Production deploy"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Target | https://pay.aicountly.com |"
+            echo "| Web | \`web/dist/\` → document root |"
+            echo "| API | \`server-php/\` → \`api/\` in the document root |"
+            echo "| Commit | \`${GITHUB_SHA:0:7}\` |"
+            echo "| Ref | \`${GITHUB_REF_NAME}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

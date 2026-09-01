@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# Apache config for the built SPA on cPanel.
+# Vite copies everything in public/ into dist/, so this ships with the build.
+# ---------------------------------------------------------------------------
+
+# --- SPA history fallback --------------------------------------------------
+# Client-side routes have no file on disk. Send anything that is not a real
+# file or directory to index.html so a refresh or deep link does not 404.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Leave real files and directories alone.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Never swallow Let's Encrypt validation requests.
+  RewriteRule ^\.well-known/ - [L]
+
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# --- Caching ---------------------------------------------------------------
+<IfModule mod_headers.c>
+  # Hashed asset filenames change on every build, so cache them hard.
+  <FilesMatch "\.(js|css|woff2?|ttf|otf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # index.html must never be cached, or a deploy is invisible to clients.
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+# --- Compression -----------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml \
+    application/javascript application/json image/svg+xml
+</IfModule>
+
+# --- Hardening -------------------------------------------------------------
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Deny access to any dotfile that somehow lands in the docroot (e.g. .env),
+# except .well-known which must stay reachable for SSL renewal.
+RedirectMatch 404 /\.(?!well-known)
