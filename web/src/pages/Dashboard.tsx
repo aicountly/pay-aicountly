@@ -1,4 +1,5 @@
 import { useAuth } from '../auth/AuthProvider'
+import { AppLauncher } from '../components/AppLauncher'
 
 /**
  * The whole application, for now: a welcome message and a way out.
@@ -11,6 +12,7 @@ export default function Dashboard() {
 
   return (
     <main className="screen">
+      <AppLauncher />
       <div className="panel">
         <h1 className="welcome">Welcome to AICOUNTLY Pay, we are going live soon.</h1>
         <button type="button" className="button" onClick={signOut}>
