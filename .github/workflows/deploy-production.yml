@@ -103,6 +103,7 @@ jobs:
           VITE_API_BASE_URL: ${{ vars.PROD_API_BASE_URL }}
           VITE_APP_NAME: Pay
           VITE_APP_ENV: production
+          VITE_GA4_SAAS_PAY_MEASUREMENT_ID: G-MYS3ZFCJST
         working-directory: web
         run: |
           if [ -z "$VITE_API_BASE_URL" ]; then
