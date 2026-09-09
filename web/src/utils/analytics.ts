@@ -42,7 +42,12 @@ export function initAnalytics(): void {
 
 export function trackPageView(path: string, title?: string): void {
   if (!GA4_ID || typeof window.gtag !== 'function') return
-  window.gtag('config', GA4_ID, {
+  // GA4 requires a `page_view` *event*, not a repeated `config` call: once
+  // `send_page_view: false` is set (above), gtag.js suppresses page_view on
+  // every subsequent config call for this measurement ID too, so re-calling
+  // config here silently sends nothing. See Google's SPA tracking guide.
+  window.gtag('event', 'page_view', {
+    page_location: window.location.origin + path,
     page_path: path,
     ...(title ? { page_title: title } : {}),
   })
