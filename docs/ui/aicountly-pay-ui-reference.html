@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aicountly Pay — UI reference</title>
+
+<!--
+  This page is styled by the PRODUCT'S OWN stylesheets, linked below, not by a
+  copy of them. Open it from its place in the repo and every specimen on it is
+  the real component; change pay.css and this page changes with it.
+
+  A reference sheet that reimplemented the components would be wrong within a
+  week, and would then be worse than useless, because somebody would build
+  against it. The only stylesheet written for this page is the third one, and it
+  contains nothing but page furniture.
+-->
+<link rel="stylesheet" href="../../web/src/index.css">
+<link rel="stylesheet" href="../../web/src/styles/pay.css">
+<link rel="stylesheet" href="aicountly-pay-ui-reference.css">
+</head>
+
+<body class="ref">
+<div class="ref-wrap">
+
+<header class="ref-head">
+  <h1>Aicountly <span>Pay</span> — UI reference</h1>
+  <p>
+    Green and white, light mint surfaces, thin borders, restrained shadow — the
+    same palette as the rest of the fleet, so somebody moving from Books to Pay
+    is plainly still in the same product. Every specimen below is rendered by
+    <code>web/src/styles/pay.css</code> itself.
+  </p>
+</header>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Colour</h2>
+  <p>
+    Tokens live on <code>:root</code> in <code>web/src/index.css</code>. Light
+    only, deliberately: there is no <code>prefers-color-scheme</code> block and
+    <code>color-scheme: light</code> is declared, because a payment screen gets
+    printed, screenshotted into support tickets, and read on a counter in
+    daylight.
+  </p>
+
+  <div class="ref-swatches">
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-brand)"></div><div class="ref-swatch__meta"><code>--pay-brand</code><small>#25b003 · marks, fills, tints</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-action)"></div><div class="ref-swatch__meta"><code>--pay-action</code><small>#187a12 · all coloured text</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-action-hover)"></div><div class="ref-swatch__meta"><code>--pay-action-hover</code><small>#125e0d</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-mint)"></div><div class="ref-swatch__meta"><code>--pay-mint</code><small>#eef9ec</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-mint-strong)"></div><div class="ref-swatch__meta"><code>--pay-mint-strong</code><small>#d9efd4</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-bg)"></div><div class="ref-swatch__meta"><code>--pay-bg</code><small>#f6f9f7 · page</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-surface);border-bottom:1px solid var(--pay-border)"></div><div class="ref-swatch__meta"><code>--pay-surface</code><small>#ffffff · cards</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-surface-2)"></div><div class="ref-swatch__meta"><code>--pay-surface-2</code><small>#f7faf7 · table heads</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-text)"></div><div class="ref-swatch__meta"><code>--pay-text</code><small>#18251e</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-muted)"></div><div class="ref-swatch__meta"><code>--pay-muted</code><small>#5b6b62</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-success)"></div><div class="ref-swatch__meta"><code>--pay-success</code><small>#216b18</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-warning)"></div><div class="ref-swatch__meta"><code>--pay-warning</code><small>#8a4b08</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-danger)"></div><div class="ref-swatch__meta"><code>--pay-danger</code><small>#b42318</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-info)"></div><div class="ref-swatch__meta"><code>--pay-info</code><small>#1c4ed8</small></div></div>
+  </div>
+
+  <p class="ref-note">
+    <strong>On the two greens.</strong> <code>#25b003</code> is the brand mark:
+    logo, chart fills, tinted surfaces. It is <strong>never used for text or for
+    a button label</strong> — white on it is about 2.4:1 and fails for anybody
+    reading at an angle in sunlight. <code>--pay-action</code> is 5.6:1 on white
+    and is what every action, link and piece of coloured text uses.
+  </p>
+
+  <p class="ref-note">
+    <strong>No dark sidebar.</strong> The navigation is on
+    <code>--pay-surface</code> with a hairline border, and the active item is a
+    mint fill with green text. A dark rail belongs to a different product.
+  </p>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Chart series</h2>
+  <p>Green-led, and still distinguishable printed in grey — a payment chart ends up on paper more often than most.</p>
+  <div class="ref-swatches">
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-series-1)"></div><div class="ref-swatch__meta"><code>--pay-series-1</code><small>successful</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-series-2)"></div><div class="ref-swatch__meta"><code>--pay-series-2</code><small>secondary green</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-series-3)"></div><div class="ref-swatch__meta"><code>--pay-series-3</code><small>pending</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-series-4)"></div><div class="ref-swatch__meta"><code>--pay-series-4</code><small>failed</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-series-5)"></div><div class="ref-swatch__meta"><code>--pay-series-5</code><small>refunded</small></div></div>
+    <div class="ref-swatch"><div class="ref-swatch__chip" style="background:var(--pay-series-6)"></div><div class="ref-swatch__meta"><code>--pay-series-6</code><small>other</small></div></div>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Buttons</h2>
+  <p><code>.pay-button</code>, with <code>--ghost</code>, <code>--soft</code>, <code>--small</code> and <code>--block</code>.</p>
+  <div class="ref-demo">
+    <button class="pay-button">Create payment request</button>
+    <button class="pay-button pay-button--soft">Record a payment made outside Pay</button>
+    <button class="pay-button pay-button--ghost">View all</button>
+    <button class="pay-button pay-button--small">Connect provider</button>
+    <button class="pay-button" disabled>Pay ₹445.00</button>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Status</h2>
+  <p>
+    <code>.pay-badge</code> carries a <code>__dot</code> as well as a hue. Colour
+    alone is not a status: about one man in twelve cannot separate the green from
+    the red, and a payment screen is the wrong place to find that out.
+  </p>
+  <div class="ref-demo">
+    <span class="pay-badge pay-badge--success"><span class="pay-badge__dot"></span>Success</span>
+    <span class="pay-badge pay-badge--warning"><span class="pay-badge__dot"></span>Pending</span>
+    <span class="pay-badge pay-badge--danger"><span class="pay-badge__dot"></span>Failed</span>
+    <span class="pay-badge pay-badge--info"><span class="pay-badge__dot"></span>Processing</span>
+    <span class="pay-badge pay-badge--neutral"><span class="pay-badge__dot"></span>Cancelled</span>
+    <span class="pay-tag pay-tag--neutral">BOOKS</span>
+    <span class="pay-tag pay-tag--warning">TEST</span>
+    <span class="pay-count">2 items</span>
+    <span class="pay-count pay-count--neutral">7</span>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Metrics</h2>
+  <p>
+    <code>.pay-metrics</code> / <code>.pay-metric</code>. Every card states its
+    basis — over the period, right now, a count — because &ldquo;collected&rdquo;
+    means two different things depending on which one it is.
+  </p>
+
+  <div class="pay-metrics">
+    <article class="pay-metric">
+      <span class="pay-metric__icon">₹</span>
+      <div>
+        <span class="pay-metric__label">Collected today</span>
+        <strong class="pay-metric__value">₹1,966</strong>
+        <small>Over the period</small>
+        <div class="pay-trend pay-trend--positive">▲ 18.4% vs. yesterday</div>
+      </div>
+    </article>
+
+    <article class="pay-metric">
+      <span class="pay-metric__icon pay-metric__icon--danger">!</span>
+      <div>
+        <span class="pay-metric__label">Failed payments</span>
+        <strong class="pay-metric__value">2</strong>
+        <small>Count</small>
+        <div class="pay-trend pay-trend--warning">▲ 2 vs. yesterday</div>
+      </div>
+    </article>
+
+    <article class="pay-metric">
+      <span class="pay-metric__icon pay-metric__icon--info">%</span>
+      <div>
+        <span class="pay-metric__label">Success rate</span>
+        <strong class="pay-metric__value pay-metric__value--unavailable">Unavailable</strong>
+        <small>No payments finished in this period</small>
+      </div>
+    </article>
+  </div>
+
+  <p class="ref-note">
+    <strong>Unavailable is not ₹0.00.</strong> A zero that means &ldquo;no
+    data&rdquo; and a zero that means &ldquo;no money&rdquo; are different facts.
+    A metric that cannot be computed says so, with the reason — a dashboard that
+    conflates the two is worse than no dashboard.
+  </p>
+
+  <p class="ref-note">
+    <strong>A rise is not automatically good news.</strong>
+    <code>--positive</code> is for a metric where up is better.
+    <code>--warning</code> is for one where it is not. More failures is never
+    green.
+  </p>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Panels and tables</h2>
+  <p><code>.pay-grid</code> is four columns; <code>.pay-span-2</code>/<code>-3</code>/<code>-4</code> widen a panel. <code>.pay-table-wrap</code> scrolls, with a shadow that appears only when there is something to scroll to.</p>
+
+  <div class="pay-grid">
+    <section class="pay-panel pay-span-2">
+      <header class="pay-panel__head">
+        <div>
+          <h2>Recent collections</h2>
+          <p>Grouped by when the money moved</p>
+        </div>
+        <button class="pay-button pay-button--ghost pay-button--small">View all</button>
+      </header>
+
+      <div class="pay-table-wrap">
+        <table class="pay-table">
+          <thead>
+            <tr><th>Payer</th><th class="num">Amount</th><th>Status</th><th>Source</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><button class="pay-table__link">UrbanNest Pvt Ltd</button><span style="display:block;color:var(--pay-muted);font-size:11.5px">INV-2026-1011</span></td>
+              <td class="num">₹445.00</td>
+              <td><span class="pay-badge pay-badge--danger"><span class="pay-badge__dot"></span>Failed</span></td>
+              <td><span class="pay-tag pay-tag--neutral">BILLING</span></td>
+            </tr>
+            <tr>
+              <td><button class="pay-table__link">Priya Mehta</button><span style="display:block;color:var(--pay-muted);font-size:11.5px">INV-2026-1000</span></td>
+              <td class="num">₹472.00</td>
+              <td><span class="pay-badge pay-badge--success"><span class="pay-badge__dot"></span>Success</span></td>
+              <td><span class="pay-tag pay-tag--neutral">BOOKS</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="pay-panel">
+      <header class="pay-panel__head"><div><h2>Action centre</h2><p>What needs somebody</p></div></header>
+      <button class="pay-action-row">
+        <span style="display:flex;align-items:center;gap:10px;min-width:0">
+          <span class="pay-action-row__mark pay-action-row__mark--danger">!</span>
+          <span style="min-width:0">
+            <span class="pay-action-row__label">Failed payments need attention</span>
+            <span class="pay-action-row__detail">₹965.00 still recoverable</span>
+          </span>
+        </span>
+        <span class="pay-badge pay-badge--danger"><span class="pay-badge__dot"></span>2</span>
+      </button>
+      <button class="pay-action-row">
+        <span style="display:flex;align-items:center;gap:10px;min-width:0">
+          <span class="pay-action-row__mark pay-action-row__mark--warning">!</span>
+          <span style="min-width:0">
+            <span class="pay-action-row__label">Unreconciled transactions</span>
+            <span class="pay-action-row__detail">₹2,365.00 involved</span>
+          </span>
+        </span>
+        <span class="pay-badge pay-badge--warning"><span class="pay-badge__dot"></span>8</span>
+      </button>
+    </section>
+
+    <section class="pay-panel">
+      <header class="pay-panel__head"><div><h2>Empty and unavailable</h2></div></header>
+      <div class="pay-empty">
+        <strong>No links sent yet</strong>
+        <p>Send a payment link and its effectiveness appears here.</p>
+      </div>
+      <div class="pay-unavailable" style="margin-top:12px">
+        <strong>Partner credentials not configured</strong>
+        <p>Aicountly Managed cannot accept applications until they are.</p>
+      </div>
+    </section>
+  </div>
+
+  <p class="ref-note">
+    <strong>An empty state says what would fill it.</strong> An unavailable state
+    says why it is not there and what would change that. Neither ever shows a
+    plausible-looking zero.
+  </p>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Progress and funnels</h2>
+  <div class="ref-grid">
+    <section class="pay-panel">
+      <header class="pay-panel__head"><div><h2>Conversion funnel</h2></div></header>
+      <div class="pay-funnel">
+        <div class="pay-funnel__row"><span class="pay-funnel__label">Requests created</span><span class="pay-funnel__track"><span class="pay-funnel__fill" style="width:100%"></span></span><span class="num">12</span></div>
+        <div class="pay-funnel__row"><span class="pay-funnel__label">Checkout started</span><span class="pay-funnel__track"><span class="pay-funnel__fill" style="width:83.3%"></span></span><span class="num">10</span></div>
+        <div class="pay-funnel__row"><span class="pay-funnel__label">Successfully paid</span><span class="pay-funnel__track"><span class="pay-funnel__fill" style="width:58.3%"></span></span><span class="num">7</span></div>
+      </div>
+    </section>
+
+    <section class="pay-panel">
+      <header class="pay-panel__head"><div><h2>Share bars</h2></div></header>
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
+        <span class="num" style="min-width:48px;font-size:12.5px">100.0%</span>
+        <div class="pay-bar" style="flex:1"><div class="pay-bar__fill" style="width:100%"></div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
+        <span class="num" style="min-width:48px;font-size:12.5px">66.7%</span>
+        <div class="pay-bar" style="flex:1"><div class="pay-bar__fill pay-bar__fill--warning" style="width:66.7%"></div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px">
+        <span class="num" style="min-width:48px;font-size:12.5px">33.3%</span>
+        <div class="pay-bar" style="flex:1"><div class="pay-bar__fill pay-bar__fill--danger" style="width:33.3%"></div></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Forms</h2>
+  <p><code>.pay-field</code> wraps a label, an input and either a hint or an error. Never both.</p>
+  <div class="ref-demo ref-demo--plain">
+    <div class="ref-grid">
+      <label class="pay-field">
+        <span class="pay-field__label">Amount</span>
+        <input class="pay-input" value="1180.00" inputmode="decimal">
+        <span class="pay-field__hint">Outstanding on this request: ₹1,180.00</span>
+      </label>
+      <label class="pay-field">
+        <span class="pay-field__label">UTR / reference</span>
+        <input class="pay-input" value="" placeholder="e.g. UTR20260917001">
+        <span class="pay-field__error">A NEFT payment needs the UTR from the bank statement.</span>
+      </label>
+      <label class="pay-field">
+        <span class="pay-field__label">Key secret</span>
+        <input class="pay-input" type="password" value="" placeholder="rzp_live_••••4821">
+        <span class="pay-field__hint">Write-only. Saved encrypted and never shown again.</span>
+      </label>
+    </div>
+  </div>
+
+  <p class="ref-note">
+    <strong>A credential field is write-only.</strong> The API returns a mask and
+    a test result, never the secret. There is no screen anywhere in this product
+    that can display a provider key back to a user.
+  </p>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Pay Pulse</h2>
+  <p>An insight carries the evidence it was computed from and a confidence, both on the screen. An insight you cannot check is one you cannot trust.</p>
+  <section class="pay-panel">
+    <header class="pay-panel__head"><div><h2>Action queue</h2><p>Ranked by what it is worth</p></div><span class="pay-count pay-count--neutral">2</span></header>
+    <div class="pay-insight">
+      <span class="pay-insight__mark">✦</span>
+      <div class="pay-insight__body">
+        <strong>2 failed payments are still recoverable, worth ₹965.00.</strong>
+        <p>These requests are still open and can be paid.</p>
+        <div class="pay-insight__evidence">
+          <span class="pay-insight__fact">window 7 days</span>
+          <span class="pay-insight__fact">2 failed</span>
+          <span class="pay-insight__fact">CARD ×2</span>
+          <span class="pay-insight__fact">55% confidence</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="ref-note">
+    <strong>It recommends; it does not act.</strong> Auto-optimisation is a
+    per-company setting, off by default, and the screen says which it is. A
+    routing change Pay made on its own, silently, is a support call nobody can
+    answer.
+  </p>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Loading</h2>
+  <p>Skeletons in the shape of what is coming. A spinner tells you to wait; a skeleton tells you what for.</p>
+  <section class="pay-panel">
+    <header class="pay-panel__head"><div><h2>Loading</h2></div></header>
+    <div class="pay-skeleton pay-skeleton--value"></div>
+    <div class="pay-skeleton pay-skeleton--line"></div>
+    <div class="pay-skeleton pay-skeleton--line"></div>
+    <div class="pay-skeleton pay-skeleton--line" style="width:62%"></div>
+  </section>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Layout rules</h2>
+  <table class="ref-table">
+    <thead><tr><th>Breakpoint</th><th>What changes</th></tr></thead>
+    <tbody>
+      <tr><td><code>&gt; 1500px</code></td><td>Full four-column grid, sidebar fixed at 232px.</td></tr>
+      <tr><td><code>≤ 1180px</code></td><td>Panels collapse toward two columns; metric cards to three-up.</td></tr>
+      <tr><td><code>≤ 900px</code></td><td>The sidebar becomes a drawer behind a toggle; the topbar keeps search and the company switcher.</td></tr>
+      <tr><td><code>≤ 560px</code></td><td>One column. Tables scroll inside their panel. The checkout is designed at this width first.</td></tr>
+      <tr><td><code>print</code></td><td>Chrome, navigation and actions are dropped; panels lose their shadow and keep their border.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ------------------------------------------------------------------ -->
+<section class="ref-section">
+  <h2>Rules</h2>
+  <table class="ref-table">
+    <thead><tr><th style="width:44%">Rule</th><th>Because</th></tr></thead>
+    <tbody>
+      <tr><td><span class="ref-no">Never</span> use <code>--pay-brand</code> for text.</td><td>2.4:1. Use <code>--pay-action</code>, which is 5.6:1.</td></tr>
+      <tr><td><span class="ref-no">Never</span> signal status with colour alone.</td><td>Badges carry a dot and a word as well as a hue.</td></tr>
+      <tr><td><span class="ref-no">Never</span> render a missing number as 0.</td><td>&ldquo;No data&rdquo; and &ldquo;no money&rdquo; are different facts.</td></tr>
+      <tr><td><span class="ref-no">Never</span> paint a rise green by default.</td><td>More failures is not good news.</td></tr>
+      <tr><td><span class="ref-no">Never</span> show a provider secret.</td><td>Write-only fields; the API returns a mask.</td></tr>
+      <tr><td><span class="ref-no">Never</span> combine the five dashboards.</td><td>Five questions, five routes.</td></tr>
+      <tr><td><span class="ref-no">Never</span> put the app shell on the checkout.</td><td>The payer is a customer, not a user of this product.</td></tr>
+      <tr><td><span class="ref-yes">Always</span> state a metric's basis.</td><td>Over the period, right now, or a count.</td></tr>
+      <tr><td><span class="ref-yes">Always</span> show an insight's evidence.</td><td>Otherwise it is an assertion.</td></tr>
+      <tr><td><span class="ref-yes">Always</span> give a chart a text alternative.</td><td>Every chart carries an <code>.pay-sr-only</code> data table.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+</body>
+</html>

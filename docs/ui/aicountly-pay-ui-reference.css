@@ -1,0 +1,150 @@
+/* ---------------------------------------------------------------------------
+   Chrome for the UI reference page, and nothing else.
+
+   The components on that page are styled by the PRODUCT's own stylesheets,
+   which it links directly — web/src/index.css and web/src/styles/pay.css. That
+   is the whole point: a reference sheet that reimplemented the components would
+   be wrong within a week and would then be worse than no reference at all,
+   because somebody would build against it.
+
+   So everything here is page furniture: the spec table, the swatch grid, the
+   section rules. Nothing in this file describes a product component, and
+   nothing in this file should ever be copied into the product.
+   --------------------------------------------------------------------------- */
+
+body.ref {
+  margin: 0;
+  padding: 0 0 80px;
+  background: var(--pay-bg);
+  color: var(--pay-text);
+}
+
+.ref-wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.ref-head {
+  padding: 48px 0 28px;
+  border-bottom: 1px solid var(--pay-border);
+  margin-bottom: 36px;
+}
+
+.ref-head h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: -0.02em; }
+.ref-head h1 span { color: var(--pay-action); }
+.ref-head p { margin: 0; max-width: 62ch; color: var(--pay-muted); font-size: 14px; line-height: 1.6; }
+
+.ref-section { margin: 0 0 44px; }
+
+.ref-section > h2 {
+  margin: 0 0 6px;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+}
+
+.ref-section > p {
+  margin: 0 0 18px;
+  max-width: 72ch;
+  color: var(--pay-muted);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.ref-note {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--pay-action);
+  background: var(--pay-mint);
+  border-radius: 0 var(--pay-radius-sm) var(--pay-radius-sm) 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--pay-text-soft);
+}
+
+.ref-note strong { color: var(--pay-action); }
+
+/* --- swatches ------------------------------------------------------------ */
+
+.ref-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 12px;
+}
+
+.ref-swatch {
+  border: 1px solid var(--pay-border);
+  border-radius: var(--pay-radius-sm);
+  overflow: hidden;
+  background: var(--pay-surface);
+}
+
+.ref-swatch__chip { height: 58px; }
+
+.ref-swatch__meta { padding: 9px 11px; }
+.ref-swatch__meta code { display: block; font-size: 11.5px; color: var(--pay-text); }
+.ref-swatch__meta small { display: block; margin-top: 2px; font-size: 11px; color: var(--pay-muted); }
+
+/* --- specimen rows ------------------------------------------------------- */
+
+.ref-demo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px dashed var(--pay-border-strong);
+  border-radius: var(--pay-radius-sm);
+  background: var(--pay-surface);
+}
+
+.ref-demo--plain { border-style: solid; border-color: var(--pay-border); display: block; }
+
+.ref-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* --- tables -------------------------------------------------------------- */
+
+.ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: var(--pay-surface);
+  border: 1px solid var(--pay-border);
+  border-radius: var(--pay-radius-sm);
+  overflow: hidden;
+}
+
+.ref-table th {
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--pay-surface-2);
+  border-bottom: 1px solid var(--pay-border);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pay-muted);
+}
+
+.ref-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--pay-border);
+  vertical-align: top;
+  line-height: 1.55;
+}
+
+.ref-table tr:last-child td { border-bottom: 0; }
+.ref-table code { font-size: 12px; white-space: nowrap; }
+
+.ref-yes { color: var(--pay-success); font-weight: 650; }
+.ref-no { color: var(--pay-danger); font-weight: 650; }
+
+@media (max-width: 720px) {
+  .ref-wrap { padding: 0 16px; }
+  .ref-head { padding-top: 28px; }
+  .ref-head h1 { font-size: 25px; }
+}

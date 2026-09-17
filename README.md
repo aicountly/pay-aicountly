@@ -1,76 +1,149 @@
-# pay-aicountly
+# Aicountly Pay
 
-Pay for Aicountly — a React single-page app built with Vite and TypeScript,
-with a small PHP API alongside it. Both halves deploy to cPanel.
+Payment collection and orchestration for the AICOUNTLY fleet. The other products
+decide that money is owed; Pay is what collects it.
 
 | Environment | App | API |
 | --- | --- | --- |
 | Production | https://pay.aicountly.com | https://pay.aicountly.com/api |
 | Sandbox | https://pay.gh.aicountly.com | https://pay.gh.aicountly.com/api |
 
-## What this app does today
+## What it does
 
-Login → Dashboard. The dashboard shows a welcome message and a **Log out**
-button, and nothing else. No navigation, no modules, no placeholder cards —
-those arrive with the product.
+```
+Collect → Process → Route → Track → Refund → Settle → Reconcile → Analyse
+```
 
-Signing in is the AICOUNTLY portal's job, the same as every other AICOUNTLY
-SaaS: the app redirects to the portal, the portal returns an `auth_token`, and
-the app exchanges it for a short-lived session key. A user who is already signed
-in to another AICOUNTLY product lands straight on the dashboard.
+- **Payment requests** raised by Books, Billing, Sales, POS — or in Pay itself —
+  with partial payments, expiry, and a link or UPI QR for the payer.
+- **A hosted checkout** a customer opens from a link, with no AICOUNTLY account
+  and no sign-in.
+- **Providers** behind one interface: Razorpay, Cashfree, Stripe, PayU. Each
+  merchant connects their own account (DIRECT), uses Aicountly's partner
+  arrangement (MANAGED), or both with routing rules between them (HYBRID).
+- **Refunds** with maker-checker enforced by a database constraint, disputes,
+  and recurring mandates.
+- **Settlements and reconciliation** — what the provider says, what Pay recorded
+  and what the bank credited, with the differences named and assigned.
+- **Payments taken outside Pay** recorded with a UTR or a cheque number. There is
+  no bare "Mark as Collected" button in this product.
+- **Five dashboards**, five routes: Overview, Collections, Gateways,
+  Settlements, Pay Pulse.
+- **Pay Pulse** — payment intelligence computed from this company's own
+  payments. It recommends; it does not act unless auto-optimisation is switched
+  on, and it is off by default.
+- **A developer API** with keys, webhooks and a delivery log.
 
-See [docs/auth/AICOUNTLY_AUTH_WORKFLOW.md](docs/auth/AICOUNTLY_AUTH_WORKFLOW.md).
+## What it does not do
+
+Pay owns the payment lifecycle and nothing else. It posts no journal entries,
+closes no invoices, holds no customer master and has no opinion about a
+financial year.
+
+**No product reads another product's database.** There is no replication here,
+no foreign data wrapper, no `dblink`, no shared schema and no sync job. Pay
+stores a *reference* to another product's record — app, type, id — and asks that
+product over HTTP when it needs the detail. The test suite enforces this: it
+scans the source for second connections and reads `information_schema` after the
+migrations to fail the build if a `pay_` table has grown into somebody else's
+master.
+
+See [docs/PAY_ARCHITECTURE.md](docs/PAY_ARCHITECTURE.md).
 
 ## Layout
 
 ```
-web/          React app (Vite). Builds to web/dist, deployed to the document root.
-server-php/   PHP API. Deployed to the api/ folder inside the document root.
-docs/         deployment and auth notes
+web/          React 19 + Vite + TypeScript. Builds to web/dist, deployed to the document root.
+server-php/   PHP 8.4 API, no framework and no composer. Deployed to api/ inside the document root.
+docs/         architecture, integration, deployment and auth notes
 ```
 
-## Getting started
+| Document | For |
+| --- | --- |
+| [PAY_ARCHITECTURE.md](docs/PAY_ARCHITECTURE.md) | How it is built and why |
+| [PAY_INTEGRATION_GUIDE.md](docs/PAY_INTEGRATION_GUIDE.md) | Wiring another app or a third party into it |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Getting it onto a host |
+| [auth/AICOUNTLY_AUTH_WORKFLOW.md](docs/auth/AICOUNTLY_AUTH_WORKFLOW.md) | Portal SSO |
 
-Requires Node.js 22 or newer.
+## Running the whole thing locally
+
+One command brings up the database, the API, a stub standing in for the portal
+and every sibling product, the built app, and enough demo data for every screen
+to say something:
 
 ```bash
-cd web
-npm install
-cp ../.env.example ../.env
-npm run dev
+server-php/tests/devstack.sh
 ```
 
-The dev server runs on http://localhost:5173 and signs in through the **sandbox**
-portal. Point `VITE_API_BASE_URL` at the deployed sandbox API
-(`https://pay.gh.aicountly.com/api`) so the token exchange has somewhere to
-go — and add `http://localhost:5173` to `CORS_ALLOWED_ORIGINS` in that server's
-`api/.env`, since localhost is the one case where the app and API are not
-same-origin.
+```
+app      http://127.0.0.1:5199
+api      http://127.0.0.1:8795/health
+```
+
+Any `auth_token` signs you in — the stub mints a session for it. Nothing reaches
+`my.aicountly.com` or any other product. Requires PHP 8.4 with `pdo_pgsql`, a
+reachable PostgreSQL 16, and Node 22+.
+
+Use the `MOCK` provider (`MOCK_PROVIDER_ENABLED=1`) to drive payments end to end
+without a gateway account. It refuses to be constructed when `APP_ENV=production`.
+
+### Tests
+
+```bash
+server-php/tests/run.sh               # integration suite against real PostgreSQL
+server-php/tests/devstack.sh --smoke  # the stack, plus a browser pass over every screen
+```
+
+The integration suite covers the state machines, idempotency, partial payments,
+refund maker-checker, webhook deduplication, routing, settlement matching, the
+dashboards, permissions, and the no-database-synchronisation rules above.
+
+The smoke pass opens every route in a real browser against the running stack and
+fails on a console error, a 4xx, an empty page or a visible crash — the class of
+bug that a type check and an API test both miss.
+
+### The halves on their own
+
+```bash
+cd web && npm install && npm run dev      # Vite on http://localhost:5173
+cd server-php && cp .env.example .env && php -S localhost:8000
+```
+
+`npm run dev` signs in through the sandbox portal, so point `VITE_API_BASE_URL`
+at a running API and add `http://localhost:5173` to that API's
+`CORS_ALLOWED_ORIGINS` — localhost is the one case where the app and the API are
+not same-origin.
 
 | Script | Purpose |
 | --- | --- |
-| `npm run dev` | Vite dev server on http://localhost:5173 |
+| `npm run dev` | Vite dev server |
 | `npm run build` | Type-check, then build to `web/dist/` |
 | `npm run typecheck` | Type-check only |
 | `npm run preview` | Serve the production build locally |
 
-The PHP API has no build step and no dependencies. To run it locally:
+The PHP API has no build step and no dependencies. Apply the migrations with
+`php server-php/bin/migrate.php` — it is idempotent, and `/health` reports what
+is applied and what is pending.
 
-```bash
-cd server-php
-cp .env.example .env      # set APP_ENV=local
-php -S localhost:8000
-```
+`php server-php/bin/worker.php` is everything that must happen without a user
+waiting, and belongs on a cron: delivering the callbacks Pay owes, expiring
+requests, pulling settlement batches, reconciling, recomputing Pay Pulse,
+checking provider health, and sweeping spent idempotency keys. It takes a lock,
+so a run that overruns its minute is normal rather than a pile-up.
 
 ## Environment variables
 
 `.env` is git-ignored and is never deployed — `.env.example` is the tracked
-template. There are two of them, and they work in opposite ways:
+template. There are two, and they work in opposite ways:
 
 | File | Read | Used by |
 | --- | --- | --- |
 | `.env.example` | **Build time**, inlined into the bundle | `web/` |
 | `server-php/.env.example` | **Runtime**, on every request | `server-php/` |
+
+Only `VITE_`-prefixed variables reach the browser bundle, and Vite inlines them
+at build time, so **treat every one of them as public**. Never put a secret,
+token or password in a `VITE_` variable.
 
 | Variable | Description |
 | --- | --- |
@@ -80,9 +153,12 @@ template. There are two of them, and they work in opposite ways:
 | `VITE_PRODUCT_KEY` | Portal product key. Derived from the hostname when unset |
 | `VITE_PORTAL_LOGIN_URL` | Login portal override. Local development only |
 
-Only `VITE_`-prefixed variables reach the browser bundle, and Vite inlines them
-at build time, so **treat every one of them as public**. Never put a secret,
-token, or password in a `VITE_` variable.
+The server side has more, and three of them have no working fallback:
+`PAY_ENCRYPTION_KEY`, `PAY_HASH_PEPPER` and `PAY_CALLBACK_SIGNING_SECRET`, plus
+the database credentials. `GET /api/health` reports `usable: false` when
+something required is missing, which is how you tell a deploy that went green on
+an app whose every real endpoint answers 503. Every variable is documented in
+[server-php/.env.example](server-php/.env.example).
 
 ### These are build-time values, not runtime values
 
