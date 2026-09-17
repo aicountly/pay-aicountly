@@ -236,10 +236,16 @@ export const AICOUNTLY_APPS: AicountlyAppDef[] = [
   },
   {
     id: 'receptionist',
-    name: 'Receptionist',
-    jumpKey: 'receptionist',
-    prodHost: 'receptionist.aicountly.com',
-    sandboxHost: 'receptionist.gh.aicountly.com',
+    name: 'Lobby',
+    // Renamed from Receptionist. `id` stays `receptionist` — it keys the
+    // uploaded product icon in Manage, unaffected by this rename. The portal
+    // jump key moved to `lobby`; my-aicountly-com keeps `receptionist` as a
+    // PRODUCT_JUMP_ALIASES entry so any old authentication_jump/receptionist
+    // link still resolves.
+    jumpKey: 'lobby',
+    prodHost: 'lobby.aicountly.com',
+    sandboxHost: 'lobby.gh.aicountly.com',
+    altHosts: ['receptionist.aicountly.com', 'receptionist.gh.aicountly.com'],
     accent: 'bg-pink-600',
   },
   {
