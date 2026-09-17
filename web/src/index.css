@@ -1,35 +1,125 @@
+/* ---------------------------------------------------------------------------
+   AICOUNTLY Pay — design tokens
+
+   Green and white, light mint surfaces, thin borders, restrained shadow. The
+   same palette as the rest of the fleet, so a user moving from Books to Pay is
+   plainly in the same product.
+
+   LIGHT ONLY, and deliberately: there is no prefers-color-scheme block, and
+   `color-scheme` is declared so the browser does not darken form controls into
+   a scheme the rest of the page does not follow. A payment screen is printed,
+   screenshotted into support tickets and read on a counter in daylight.
+
+   ON THE TWO GREENS. #25b003 is the brand mark and is used for the logo, for
+   chart fills and for tinted surfaces. It is NOT used for text or for a button
+   label, because white on #25b003 is about 2.4:1 and fails for anybody reading
+   it at an angle in sunlight. --pay-action is 5.6:1 on white and is what every
+   action, link and piece of coloured text uses.
+   --------------------------------------------------------------------------- */
+
 :root {
-  --bg: #ffffff;
-  --fg: #18181b;
-  --muted: #71717a;
-  --border: #e4e4e7;
-  --accent: #18181b;
-  --accent-fg: #fafafa;
+  color-scheme: light;
 
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.6;
-  color-scheme: light dark;
+  /* Brand */
+  --pay-brand: #25b003;
+  --pay-action: #187a12;
+  --pay-action-hover: #125e0d;
+  --pay-mint: #eef9ec;
+  --pay-mint-strong: #d9efd4;
+
+  /* Surfaces */
+  --pay-bg: #f6f9f7;
+  --pay-surface: #ffffff;
+  --pay-surface-2: #f7faf7;
+
+  /* Text */
+  --pay-text: #18251e;
+  --pay-text-soft: #4a5b52;
+  --pay-muted: #5b6b62;
+
+  /* Lines */
+  --pay-border: #e1e9e3;
+  --pay-border-strong: #c7d4ca;
+
+  /* Semantic. Each is dark enough for text on its own tinted background. */
+  --pay-danger: #b42318;
+  --pay-danger-bg: #fff0ef;
+  --pay-warning: #8a4b08;
+  --pay-warning-bg: #fff4df;
+  --pay-info: #1c4ed8;
+  --pay-info-bg: #eff4ff;
+  --pay-success: #216b18;
+  --pay-success-bg: #eaf7e7;
+
+  /* Chart series. Green-led, and distinguishable when printed in grey —
+     a payment chart ends up on paper more often than most. */
+  --pay-series-1: #25b003;
+  --pay-series-2: #7fd45f;
+  --pay-series-3: #f59e0b;
+  --pay-series-4: #b42318;
+  --pay-series-5: #3b82f6;
+  --pay-series-6: #94a3b8;
+
+  --pay-radius: 16px;
+  --pay-radius-sm: 10px;
+  --pay-shadow: 0 4px 20px rgb(24 55 35 / 4%);
+  --pay-shadow-lg: 0 18px 44px rgb(24 55 35 / 14%);
+
+  --pay-sidebar-w: 232px;
+
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #09090b;
-    --fg: #fafafa;
-    --muted: #a1a1aa;
-    --border: #27272a;
-    --accent: #fafafa;
-    --accent-fg: #09090b;
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
-  color: var(--fg);
+  background:
+    radial-gradient(circle at 85% -5%, rgb(37 176 3 / 5%), transparent 30%),
+    var(--pay-bg);
+  color: var(--pay-text);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--pay-action); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* A visible focus ring everywhere, not just where somebody remembered. A
+   keyboard user on a payment screen has to know where they are. */
+:focus-visible {
+  outline: 3px solid var(--pay-action);
+  outline-offset: 2px;
+}
+
+/* Tabular figures wherever money appears: a column of amounts that does not
+   line up is a column somebody has to read twice. */
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pay-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

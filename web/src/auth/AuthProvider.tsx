@@ -15,12 +15,18 @@ import {
   redirectToPortalSso,
 } from './portal'
 import { clearAllTokens, getAuthToken, setAuthToken } from './tokens'
+import { isPublicLocation } from './publicRoutes'
 
 /**
  * `loading` covers both "starting up" and "leaving for the portal" — in the
  * redirect case the page is about to unload, so it never renders anything else.
  */
-export type AuthStatus = 'loading' | 'authenticated' | 'signed-out'
+export type AuthStatus =
+  | 'loading'
+  | 'authenticated'
+  | 'signed-out'
+  /** On a route a stranger may open. No sign-in was attempted and none will be. */
+  | 'public'
 
 interface AuthState {
   status: AuthStatus
@@ -63,6 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const settle = setState
 
     async function boot() {
+      // A stranger paying an invoice has no AICOUNTLY account and never will.
+      // This provider mounts ABOVE the router, so without this check it starts
+      // a portal jump before App gets to decide anything — the guard there runs
+      // after the redirect has already left. It would also rewrite the address
+      // bar to "/" on the way past, throwing away the only credential that
+      // customer has.
+      if (isPublicLocation()) {
+        settle({ status: 'public', message: null })
+        return
+      }
+
       const { authToken, authError } = readAuthCallback()
       const onCallbackPath = window.location.pathname === CALLBACK_PATH
 
