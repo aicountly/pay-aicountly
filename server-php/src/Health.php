@@ -89,6 +89,88 @@ final class Health
     }
 
     /**
+     * What a PDOException actually means, for the caller and for the operator.
+     *
+     * "The database is not reachable" was once the answer to every one of
+     * these, and it sent the one person who could fix it to look at the wrong
+     * thing: an operator who had configured DB_HOST correctly and simply not
+     * run the migrations was told the server could not be reached. The four
+     * cases below need four different actions, so they get four different
+     * sentences.
+     *
+     * The message is deliberately about THIS DEPLOYMENT and names no database,
+     * role or host — the detail goes to the error log, which is where the
+     * person fixing it is entitled to see it.
+     *
+     * @return array{code: string, message: string}
+     */
+    public static function explain(\PDOException $e): array
+    {
+        $m = strtolower($e->getMessage());
+
+        // The pgsql driver puts the SQLSTATE in errorInfo[0] for BOTH connection
+        // and query failures. getCode() only carries it for query failures — a
+        // connection failure reports the libpq code 7 instead — so reading
+        // getCode() alone misclassifies every connection error as unknown.
+        $state = (string) ($e->errorInfo[0] ?? $e->getCode() ?? '');
+
+        // 42P01 undefined_table, 3F000 invalid_schema_name. The connection is
+        // FINE and the tables are not there. This is the common state on a host
+        // somebody has just configured, and it is not about reachability at all.
+        if ($state === '42P01' || $state === '3F000' || str_contains($m, 'undefined table')) {
+            return [
+                'code' => 'schema_not_migrated',
+                'message' => 'The Pay database is reachable but its tables have not been created yet. Run php bin/migrate.php on the server.',
+            ];
+        }
+
+        if (str_contains($m, 'could not find driver')) {
+            return [
+                'code' => 'driver_missing',
+                'message' => 'This server has no PostgreSQL driver for PHP. Enable the pdo_pgsql extension.',
+            ];
+        }
+
+        if (str_contains($m, 'not configured')) {
+            return [
+                'code' => 'database_not_configured',
+                'message' => 'The Pay database is not configured on this server. Set DB_NAME and DB_USER in api/.env.',
+            ];
+        }
+
+        // Checked before the database test below, because both arrive as
+        // `FATAL: ... does not exist` and only the quoted noun tells them apart.
+        if (str_contains($m, 'password authentication') || str_contains($m, 'pg_hba')
+            || preg_match('/role "[^"]*" does not exist/', $m) === 1) {
+            return [
+                'code' => 'database_credentials_rejected',
+                'message' => 'The Pay database rejected these credentials. Check DB_USER and DB_PASS in api/.env.',
+            ];
+        }
+
+        if (preg_match('/database "[^"]*" does not exist/', $m) === 1) {
+            return [
+                'code' => 'no_such_database',
+                'message' => 'That Pay database does not exist on this server. Check DB_NAME in api/.env, and create the database if it has not been created yet.',
+            ];
+        }
+
+        if (str_contains($m, 'connection refused') || str_contains($m, 'could not connect')
+            || str_contains($m, 'timeout') || str_contains($m, 'no such host')
+            || str_contains($m, 'could not translate host name')) {
+            return [
+                'code' => 'database_unreachable',
+                'message' => 'Nothing is answering at the configured Pay database address. Check DB_HOST and DB_PORT in api/.env, and that PostgreSQL is running.',
+            ];
+        }
+
+        return [
+            'code' => 'database_unavailable',
+            'message' => 'The Pay database is not reachable right now. Please retry.',
+        ];
+    }
+
+    /**
      * A category a stranger may see, from a message they may not.
      *
      * The full driver text is logged, because the person who has to fix this
