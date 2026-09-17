@@ -471,9 +471,12 @@ final class Outbox
 
         try {
             return Db::all(
+                // jsonb_exists() rather than the `?` operator: PDO reads a bare
+                // `?` as a positional placeholder and refuses to mix it with
+                // named ones, which silently breaks every delivery.
                 'SELECT endpoint_id, target_url, subscribed_events FROM pay_webhook_endpoints
                  WHERE cmp_id = :cmp AND status = :active
-                   AND (jsonb_array_length(subscribed_events) = 0 OR subscribed_events ? :event)',
+                   AND (jsonb_array_length(subscribed_events) = 0 OR jsonb_exists(subscribed_events, :event))',
                 ['cmp' => $ctx->cmpId, 'active' => 'ACTIVE', 'event' => $event],
             );
         } catch (\Throwable $e) {

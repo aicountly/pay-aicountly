@@ -81,7 +81,15 @@ final class States
 
     /** @var array<string, list<string>> */
     private const ATTEMPT_TRANSITIONS = [
-        self::ATTEMPT_CREATED => [self::ATTEMPT_INITIATED, self::ATTEMPT_FAILED, self::ATTEMPT_CANCELLED],
+        // CREATED can reach a money state directly, and must. A provider-hosted
+        // link is paid without us seeing anything in between: the first we hear
+        // is a webhook saying captured. Refusing that jump would drop a real
+        // payment on the floor because our record was one step behind.
+        self::ATTEMPT_CREATED => [
+            self::ATTEMPT_INITIATED, self::ATTEMPT_PENDING, self::ATTEMPT_AUTHORIZED,
+            self::ATTEMPT_CAPTURED, self::ATTEMPT_SUCCESS,
+            self::ATTEMPT_FAILED, self::ATTEMPT_CANCELLED,
+        ],
         self::ATTEMPT_INITIATED => [
             self::ATTEMPT_PENDING, self::ATTEMPT_AUTHORIZED, self::ATTEMPT_CAPTURED,
             self::ATTEMPT_SUCCESS, self::ATTEMPT_FAILED, self::ATTEMPT_CANCELLED,

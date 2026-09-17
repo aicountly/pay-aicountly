@@ -276,12 +276,28 @@ final class WebhookIngest
     private static function resolveConnection(string $providerCode, array $payload, array $headers): ?array
     {
         // 1. The connection id we put in our own webhook URL when the merchant
-        //    connected the provider. Unambiguous, and the normal path.
-        $connectionUuid = $headers['x-pay-connection'] ?? '';
-        if (is_string($connectionUuid) && $connectionUuid !== '') {
+        //    connected the provider: `/api/v1/webhooks/razorpay?c=<uuid>`.
+        //    Unambiguous, and the normal path.
+        //
+        //    It is a QUERY PARAMETER rather than a header because a provider's
+        //    dashboard lets a merchant paste a URL and nothing else — there is
+        //    no field for a custom header. A header is still honoured for a
+        //    provider that can send one.
+        //
+        //    It GRANTS NOTHING. Naming a connection only says which signing
+        //    secret to check the body against, so a forged value fails
+        //    verification a moment later. It cannot create access or a row.
+        $connectionUuid = (string) ($_GET['c'] ?? '');
+        if ($connectionUuid === '') {
+            $fromHeader = $headers['x-pay-connection'] ?? '';
+            $connectionUuid = is_string($fromHeader) ? $fromHeader : '';
+        }
+
+        if ($connectionUuid !== '') {
             $row = Db::first(
-                'SELECT * FROM ' . ProviderRegistry::CONNECTIONS . ' WHERE connection_uuid = :uuid',
-                ['uuid' => $connectionUuid],
+                'SELECT * FROM ' . ProviderRegistry::CONNECTIONS . '
+                 WHERE connection_uuid = :uuid AND provider_code = :code',
+                ['uuid' => $connectionUuid, 'code' => $providerCode],
             );
             if ($row !== null) {
                 return $row;

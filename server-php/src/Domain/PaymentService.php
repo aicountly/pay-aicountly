@@ -183,7 +183,12 @@ final class PaymentService
         }
 
         Db::update(self::TABLE, array_filter([
-            'status'              => self::mapProviderStatus((string) ($result['status'] ?? 'CREATED')),
+            // INITIATED, not whatever the provider calls its own brand-new
+            // order. From Pay's side the payment HAS been sent to a provider,
+            // and that is what this column records. A provider that says
+            // "created" and one that says "pending" are describing their own
+            // bookkeeping, not ours.
+            'status'              => self::mapStartStatus((string) ($result['status'] ?? 'CREATED')),
             'provider_payment_id' => $result['provider_payment_id'] ?? null,
             'provider_order_id'   => $result['provider_order_id'] ?? null,
             'initiated_at'        => gmdate('Y-m-d H:i:s'),
@@ -506,11 +511,23 @@ final class PaymentService
             ->clampToZero();
     }
 
-    private static function mapProviderStatus(string $providerStatus): string
+    /**
+     * What the attempt's status becomes once the provider has accepted it.
+     *
+     * Anything the provider calls "created" becomes INITIATED here, because we
+     * have in fact initiated it. Where the provider already reports something
+     * further along — a mandate debit that succeeded synchronously — that is
+     * honoured instead.
+     */
+    private static function mapStartStatus(string $providerStatus): string
     {
         $upper = strtoupper($providerStatus);
 
-        return in_array($upper, States::all('attempt'), true) ? $upper : States::ATTEMPT_INITIATED;
+        if ($upper === States::ATTEMPT_CREATED || !in_array($upper, States::all('attempt'), true)) {
+            return States::ATTEMPT_INITIATED;
+        }
+
+        return $upper;
     }
 
     /** @return array<string, mixed>|null */
