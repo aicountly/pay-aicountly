@@ -288,8 +288,15 @@ jobs:
           # runtime on every request, unlike the web build. It must never be
           # uploaded and must never be deleted, hence the excludes below
           # combined with --delete.
+          #
+          # .env.example has no secrets and is meant to ship with the API: the
+          # notice below assumes it's already on the server as the template
+          # for that api/.env. Rsync filter rules are first-match-wins, so the
+          # include has to come before the broader .env.* exclude or it would
+          # never be reached.
           rsync -avz --delete \
             --exclude='.env' \
+            --include='.env.example' \
             --exclude='.env.*' \
             --exclude='.git*' \
             --chmod=D755,F644 \
