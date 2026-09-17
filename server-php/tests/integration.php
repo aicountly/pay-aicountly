@@ -1757,6 +1757,92 @@ check('every API path the React app calls is a registered route', static functio
 });
 
 /**
+ * A 503 must say which of six different things went wrong.
+ *
+ * Regression test for a live incident: an operator who had configured the
+ * database correctly and simply not run the migrations was told "the Pay
+ * database is not reachable", and went to debug a network that was fine. Every
+ * PDOException answered with that one sentence.
+ *
+ * The exceptions here come from the REAL driver, not from hand-written strings,
+ * because the whole bug was an assumption about what the driver returns:
+ * getCode() carries the SQLSTATE for a query failure but the libpq code 7 for a
+ * connection failure, so matching on it alone misclassifies every connection
+ * error.
+ */
+check('a database failure says which failure it is', static function (): void {
+    $dsn = sprintf('pgsql:host=%s;port=%s;dbname=%s', Env::get('DB_HOST'), Env::get('DB_PORT'), Env::get('DB_NAME'));
+    $user = Env::get('DB_USER');
+    $pass = Env::get('DB_PASS');
+    $options = [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION];
+
+    /** @return array{code:string, message:string} */
+    $explain = static function (callable $fn) use (&$explain): array {
+        try {
+            $fn();
+        } catch (\PDOException $e) {
+            return Health::explain($e);
+        }
+
+        throw new \RuntimeException('expected the driver to fail, it did not');
+    };
+
+    // A table that is not there. The connection is fine.
+    assertSame(
+        'schema_not_migrated',
+        $explain(static fn () => (new \PDO($dsn, $user, $pass, $options))
+            ->query('SELECT 1 FROM pay_table_that_does_not_exist'))['code'],
+        'a missing table is not an unreachable database',
+    );
+
+    // A role that is not there, and a database that is not there, both arrive as
+    // `FATAL: ... does not exist` and are told apart only by the quoted noun.
+    assertSame(
+        'database_credentials_rejected',
+        $explain(static fn () => new \PDO($dsn, 'pay_role_that_does_not_exist', 'x', $options))['code'],
+        'a bad role is a credentials problem',
+    );
+
+    assertSame(
+        'no_such_database',
+        $explain(static fn () => new \PDO(
+            sprintf('pgsql:host=%s;port=%s;dbname=%s', Env::get('DB_HOST'), Env::get('DB_PORT'), 'pay_db_that_does_not_exist'),
+            $user,
+            $pass,
+            $options,
+        ))['code'],
+        'a missing database is named as one',
+    );
+
+    // Nothing listening at all.
+    assertSame(
+        'database_unreachable',
+        $explain(static fn () => new \PDO('pgsql:host=127.0.0.1;port=59999;dbname=x', 'u', 'p', $options))['code'],
+        'a refused connection points at DB_HOST and DB_PORT',
+    );
+
+    // The two Db::connect() raises itself, before the driver is involved.
+    assertSame(
+        'database_not_configured',
+        Health::explain(new \PDOException('Database is not configured (DB_NAME / DB_USER missing from api/.env).'))['code'],
+        'an empty configuration says so',
+    );
+
+    assertSame(
+        'driver_missing',
+        Health::explain(new \PDOException('could not find driver'))['code'],
+        'a host without pdo_pgsql says so',
+    );
+
+    // The fallback still exists for anything unrecognised.
+    assertSame(
+        'database_unavailable',
+        Health::explain(new \PDOException('something nobody has seen before'))['code'],
+        'and anything else falls back',
+    );
+});
+
+/**
  * A route argument must reach its handler exactly as it arrived.
  *
  * This is a regression test for a real bug: the front controller lowercased the

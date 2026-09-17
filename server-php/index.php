@@ -254,10 +254,14 @@ try {
         exit;
     }
 } catch (\PDOException $e) {
-    // A database problem is ours, not the caller's. The detail goes to the log;
-    // the caller gets something they can act on.
+    // A database problem is ours, not the caller's. The full driver text — which
+    // names the database, the role and the host — goes to the log; the caller
+    // gets the one sentence that says what to DO about it. Answering "not
+    // reachable" to every PDOException sent operators who had configured the
+    // connection correctly, and simply not migrated, to debug their network.
     error_log('[pay] database error on ' . $path . ': ' . $e->getMessage());
-    Http::error(503, 'database_unavailable', 'The Pay database is not reachable right now. Please retry.');
+    $explained = Health::explain($e);
+    Http::error(503, $explained['code'], $explained['message']);
 } catch (\Throwable $e) {
     error_log('[pay] unhandled error on ' . $path . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
     Http::error(500, 'server_error', 'Something went wrong handling that request.');
