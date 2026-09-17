@@ -8,18 +8,27 @@ declare(strict_types=1);
  * Deployed to <document root>/api, so it is same-origin with the React app on
  * both pay.aicountly.com and pay.gh.aicountly.com.
  *
- * Routes:
- *   GET  /api/health          liveness + which environment answered
+ * This file handles the three routes that exist before the product does:
+ *
+ *   GET  /api/health          liveness + readiness
  *   POST /api/global/{path}   allow-listed relay to the portal auth API
  *   GET  /api/session         who the caller is, per the portal
  *
- * There is deliberately nothing else here yet.
+ * Everything else — the Pay API proper — is dispatched by Routes/Router at the
+ * bottom, so authentication, company scope and the tenant check happen in one
+ * place instead of being remembered per endpoint.
  */
 
 namespace Aicountly\Api;
 
+// Env is required by hand because the autoloader has not been registered yet
+// and this file needs configuration before anything else runs. Everything after
+// it — Portal, Router, Routes, the controllers and the services beneath them —
+// is resolved by the autoloader, which is why it is loaded here and not only in
+// the test bootstrap: without it this file parses fine and then fatals on the
+// first class it names, which is every route below /session.
 require __DIR__ . '/src/Env.php';
-require __DIR__ . '/src/Portal.php';
+require __DIR__ . '/src/Autoload.php';
 
 Env::load(__DIR__ . '/.env');
 
@@ -101,20 +110,6 @@ function bearer_token(): string
 }
 
 /**
- * Collapse a routed path to the exact form RELAYED_PATHS is written in.
- *
- * Percent-escapes are decoded first so `%2e%2e` cannot smuggle a traversal
- * segment past the allowlist; exact matching does the rest.
- */
-function normalise_path(string $path): string
-{
-    $decoded = str_replace('\\', '/', rawurldecode($path));
-    $segments = array_values(array_filter(explode('/', $decoded), static fn ($s) => $s !== ''));
-
-    return strtolower(implode('/', $segments));
-}
-
-/**
  * CORS for local development only.
  *
  * In both deployed environments the app and this API share an origin, so no
@@ -162,9 +157,13 @@ if ($mountPoint !== '' && $mountPoint !== '/' && strpos($uri, $mountPoint) === 0
     $uri = substr($uri, strlen($mountPoint));
 }
 
-$path = normalise_path($uri);
+$path = Path::normalise($uri);
+// Only the fixed names below are matched case-insensitively. $path itself keeps
+// the case it arrived with, because everything after this point may contain an
+// id or a link token.
+$fixed = Path::key($path);
 
-if ($path === '' || $path === 'health') {
+if ($fixed === '' || $fixed === 'health') {
     // Liveness AND readiness. 'status' stays ok whenever PHP is serving, so an
     // uptime monitor pointed here keeps behaving as it always has; the database
     // and encryption blocks are what say whether the app can actually be used.
@@ -190,8 +189,8 @@ if ($path === '' || $path === 'health') {
     ]);
 }
 
-if (strpos($path, 'global/') === 0) {
-    $portalPath = substr($path, strlen('global/'));
+if (strpos($fixed, 'global/') === 0) {
+    $portalPath = substr($fixed, strlen('global/'));
 
     if (!in_array($portalPath, RELAYED_PATHS, true)) {
         send_json(404, ['message' => 'This path is not relayed. Call the portal API directly.']);
@@ -221,7 +220,7 @@ if (strpos($path, 'global/') === 0) {
     exit;
 }
 
-if ($path === 'session') {
+if ($fixed === 'session') {
     $sesKey = bearer_token();
     if ($sesKey === '') {
         send_json(401, ['message' => 'Missing bearer session key.']);

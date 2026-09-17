@@ -94,148 +94,13 @@ function assertThrows(callable $fn, string $expectFragment, string $what): void
 
 // ---------------------------------------------------------------------------
 // Fixtures
+//
+// In their own file because tests/seed.php builds the local stack's demo data
+// with the same helpers. Two copies would drift, and the copy that drifted
+// would be the one nobody runs.
 // ---------------------------------------------------------------------------
 
-function freshContext(int $cmpId = 55, int $boId = 0, int $fyId = 4): Context
-{
-    $r = new \ReflectionClass(Context::class);
-    $ctx = $r->newInstanceWithoutConstructor();
-    foreach (['cmpId' => $cmpId, 'boId' => $boId, 'fyId' => $fyId] as $prop => $value) {
-        $p = $r->getProperty($prop);
-        $p->setAccessible(true);
-        $p->setValue($ctx, $value);
-    }
-
-    return $ctx;
-}
-
-function authFor(string $uuid = 'user-owner', ?int $acsType = 1, string $kind = 'user'): Auth
-{
-    $r = new \ReflectionClass(Auth::class);
-    $auth = $r->newInstanceWithoutConstructor();
-    foreach ([
-        'uuid'        => $uuid,
-        'kind'        => $kind,
-        'sourceApp'   => $kind === 'service' ? 'books' : 'pay',
-        'sesKey'      => 'stub-ses-key',
-        'session'     => ['acs_type' => $acsType, 'name' => $uuid],
-        'boundCmpId'  => 0,
-        'scopes'      => [],
-        'testMode'    => false,
-    ] as $prop => $value) {
-        $p = $r->getProperty($prop);
-        $p->setAccessible(true);
-        $p->setValue($auth, $value);
-    }
-
-    return $auth;
-}
-
-/**
- * A delegated user holding exactly the permissions of one shipped role.
- *
- * Use it with a company the stub reports as DELEGATED (57). Against a company
- * the caller owns, every check passes by definition — an owner holds
- * everything — and the test would prove nothing.
- */
-function userWithRole(Context $ctx, string $uuid, string $templateKey): Auth
-{
-    Permissions::seed($ctx);
-    $roleId = (int) Db::scalar(
-        'SELECT role_id FROM pay_roles WHERE cmp_id = :cmp AND role_code = :code',
-        ['cmp' => $ctx->cmpId, 'code' => $templateKey],
-    );
-    Db::run(
-        'INSERT INTO pay_role_assignments (cmp_id, user_uuid, role_id) VALUES (:cmp, :uuid, :role) ON CONFLICT DO NOTHING',
-        ['cmp' => $ctx->cmpId, 'uuid' => $uuid, 'role' => $roleId],
-    );
-    Permissions::forget();
-
-    return authFor($uuid, 0);
-}
-
-/**
- * A working mock provider connection for a company.
- *
- * `$environment` exists so a test can create TWO connections for one company —
- * the unique index is (company, provider, mode, environment), and hybrid
- * routing cannot be tested with one provider. Both are mocks, so both work;
- * the environment is only what keeps them distinct.
- */
-function connectMock(
-    Context $ctx,
-    string $name = 'Test provider',
-    array $methods = ['UPI', 'CARD', 'NETBANKING', 'WALLET'],
-    string $environment = 'TEST',
-    bool $primary = true,
-): array {
-    $connectionId = (int) Db::insert('pay_provider_connections', [
-        'connection_uuid' => Ids::mint(Ids::CONNECTION),
-        'cmp_id'          => $ctx->cmpId,
-        'provider_code'   => 'MOCK',
-        'provider_mode'   => 'DIRECT',
-        'display_name'    => $name,
-        'status'          => 'ACTIVE',
-        'environment'     => $environment,
-        'supported_methods' => $methods,
-        'supported_currencies' => ['INR'],
-        'is_primary'      => $primary,
-    ], 'connection_id');
-
-    ProviderRegistry::storeCredential($ctx, $connectionId, 'key_id', 'mock_key_id', 'test');
-    ProviderRegistry::storeCredential($ctx, $connectionId, 'key_secret', 'mock_key_secret', 'test');
-    ProviderRegistry::storeCredential($ctx, $connectionId, 'webhook_secret', 'mock_webhook_secret', 'test');
-    ProviderRegistry::forget();
-
-    return Db::first('SELECT * FROM pay_provider_connections WHERE connection_id = :id', ['id' => $connectionId]);
-}
-
-/** A payment request, ready to be paid. */
-function makeRequest(Context $ctx, Auth $auth, array $overrides = []): array
-{
-    $result = PaymentRequestService::create($ctx, $auth, array_merge([
-        'source_app'  => 'PAY',
-        'reference'   => 'TEST-' . bin2hex(random_bytes(4)),
-        'description' => 'Test payment',
-        'amount'      => 1000.00,
-        'currency'    => 'INR',
-    ], $overrides));
-
-    $row = PaymentRequestService::findByUuid($ctx, (string) $result['payment_request_id']);
-    if ($row === null) {
-        throw new \RuntimeException('the request was not created');
-    }
-
-    return $row;
-}
-
-/** Drive a payment all the way to success through the mock provider. */
-function payInFull(Context $ctx, Auth $auth, array $request, array $connection, ?float $amount = null): array
-{
-    $result = PaymentService::start($ctx, $auth, $request, [
-        'amount'  => $amount,
-        'method'  => 'UPI',
-        'channel' => 'LINK',
-        'idempotency_key' => 'test-' . bin2hex(random_bytes(6)),
-    ]);
-
-    if (!($result['ok'] ?? false)) {
-        throw new \RuntimeException('payment did not start: ' . (string) ($result['error_message'] ?? '?'));
-    }
-
-    $attempt = PaymentService::findByUuid($ctx, (string) $result['attempt']['payment_id']);
-
-    PaymentService::applyProviderState($ctx, [
-        'provider_payment_id' => (string) $attempt['provider_payment_id'],
-        'status'       => States::ATTEMPT_SUCCESS,
-        'amount_minor' => (int) $attempt['amount_minor'],
-        'currency'     => 'INR',
-        'method'       => 'UPI',
-        'occurred_at'  => gmdate('c'),
-    ], $connection);
-
-    return PaymentService::require($ctx, (int) $attempt['attempt_id']);
-}
+require __DIR__ . '/fixtures.php';
 
 function resetDatabase(): void
 {
@@ -713,6 +578,43 @@ check('a provider contradicting a settled payment opens a case rather than rever
         'SELECT COUNT(*) FROM pay_reconciliation_cases WHERE cmp_id = :cmp AND case_kind = :kind',
         ['cmp' => $ctx->cmpId, 'kind' => ReconciliationService::PROVIDER_STATE_CONFLICT],
     ), 'and a reconciliation case was opened for a human');
+});
+
+check('a failed payment is not left waiting for a settlement that cannot come', static function (): void {
+    resetDatabase();
+    $ctx = freshContext();
+    $auth = authFor();
+    $connection = connectMock($ctx);
+    $request = makeRequest($ctx, $auth, ['amount' => 500.00]);
+
+    $started = PaymentService::start($ctx, $auth, $request, [
+        'method'  => 'CARD',
+        'channel' => 'CHECKOUT',
+        'idempotency_key' => 'test-' . bin2hex(random_bytes(6)),
+    ]);
+    assertTrue($started['ok'] ?? false, 'the payment started');
+
+    $attempt = PaymentService::findByUuid($ctx, (string) $started['attempt']['payment_id']);
+
+    // The column defaults to PENDING, which is right while the attempt is in
+    // flight and wrong the moment it is not.
+    assertSame('PENDING', (string) $attempt['settlement_status'], 'pending while in flight');
+
+    PaymentService::applyProviderState($ctx, [
+        'provider_payment_id' => (string) $attempt['provider_payment_id'],
+        'status'        => States::ATTEMPT_FAILED,
+        'error_code'    => 'payment_declined',
+        'error_message' => 'The bank declined this card.',
+        'currency'      => 'INR',
+    ], $connection);
+
+    $failed = PaymentService::require($ctx, (int) $attempt['attempt_id']);
+    assertSame(States::ATTEMPT_FAILED, (string) $failed['status'], 'the payment failed');
+    assertSame(
+        'NOT_APPLICABLE',
+        (string) $failed['settlement_status'],
+        'money that never moved is not awaiting settlement',
+    );
 });
 
 check('an out-of-order webhook does not take a captured payment backwards', static function (): void {
@@ -1771,6 +1673,161 @@ check('the audit trail redacts anything secret-shaped', static function (): void
     // key_id is an identifier, not a secret, and redacting it would make the
     // trail unreadable.
     assertSame('rzp_live_visible_id', $after['key_id'] ?? null, 'but an identifier is kept');
+});
+
+// ===========================================================================
+echo "\nThe frontend/backend contract\n";
+// ===========================================================================
+
+/**
+ * Every path the React app calls must exist in the router.
+ *
+ * These two halves live in different languages and are never compiled
+ * together, so a renamed route is a 404 nobody sees until a user clicks the
+ * thing. This walks web/src for `api.list('v1/…')` and friends and matches
+ * each one against Routes.php, which is the only place that mapping is
+ * written down.
+ */
+check('every API path the React app calls is a registered route', static function (): void {
+    $root = dirname(__DIR__, 2);
+    $webSrc = $root . '/web/src';
+    if (!is_dir($webSrc)) {
+        // The API is deployable without the web folder beside it — a checkout
+        // of just server-php should not fail this suite.
+        echo "      (web/src not present — skipped)\n";
+        return;
+    }
+
+    // --- what the router serves ---
+    $routesFile = (string) file_get_contents(dirname(__DIR__) . '/src/Routes.php');
+    preg_match_all(
+        "/->(get|post|put|delete)\(\s*'([^']+)'/",
+        $routesFile,
+        $matches,
+        PREG_SET_ORDER,
+    );
+
+    $registered = [];
+    foreach ($matches as $match) {
+        // {id}, {token}, {paymentId} — the name does not matter for matching,
+        // only that a segment is dynamic.
+        $registered[] = preg_replace('/\{[^}]+\}/', '{}', $match[2]);
+    }
+    assertTrue(count($registered) > 40, 'Routes.php was actually parsed');
+
+    // --- what the app calls ---
+    $called = [];
+    $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($webSrc));
+    foreach ($iterator as $file) {
+        if (!$file->isFile() || !in_array($file->getExtension(), ['ts', 'tsx'], true)) {
+            continue;
+        }
+
+        $contents = (string) file_get_contents($file->getPathname());
+        preg_match_all(
+            '/api\.(?:one|list|post|put|delete|unscoped)(?:<[^(]*>)?\(\s*(?:`([^`]+)`|\'([^\']+)\')/',
+            $contents,
+            $found,
+            PREG_SET_ORDER,
+        );
+
+        foreach ($found as $call) {
+            $path = $call[1] !== '' ? $call[1] : ($call[2] ?? '');
+            if ($path === '' || !str_starts_with($path, 'v1/')) {
+                continue;
+            }
+
+            // `${id}` in a template literal is the same dynamic segment the
+            // router writes as `{id}`.
+            $normalised = preg_replace('/\$\{[^}]*\}/', '{}', $path);
+            $called[$normalised] = basename($file->getPathname());
+        }
+    }
+    assertTrue(count($called) > 20, 'the web sources were actually scanned');
+
+    $missing = [];
+    foreach ($called as $path => $where) {
+        if (!in_array($path, $registered, true)) {
+            $missing[] = $path . ' (' . $where . ')';
+        }
+    }
+
+    sort($missing);
+    assertSame([], $missing, 'the app calls routes that do not exist: ' . implode(', ', $missing));
+});
+
+/**
+ * A route argument must reach its handler exactly as it arrived.
+ *
+ * This is a regression test for a real bug: the front controller lowercased the
+ * whole path so it could compare it against the portal-relay allowlist, which
+ * also lowercased every id and public link token inside it. `PAYREQ-…-A7F3` hit
+ * the handler as `payreq-…-a7f3`, matched no row, and every by-id route in the
+ * product answered 404 on a deployment — while passing a suite that called the
+ * router directly with paths it had built itself.
+ */
+check('a path keeps the case of its ids and its link tokens', static function (): void {
+    assertSame(
+        'v1/payment-requests/PAYREQ-TLH1-527DD95B19FEA782',
+        Path::normalise('/v1/payment-requests/PAYREQ-TLH1-527DD95B19FEA782'),
+        'an id survives normalisation',
+    );
+    assertSame(
+        'v1/public/pay/05KGcfMaXYKvR-o4CYyYDSuH6g59Fzsz',
+        Path::normalise('/v1/public/pay/05KGcfMaXYKvR-o4CYyYDSuH6g59Fzsz'),
+        'so does a public link token',
+    );
+    assertSame(
+        'v1/payments',
+        Path::normalise('//v1//payments/'),
+        'empty segments still collapse',
+    );
+    assertSame(
+        'v1/payments/../secret',
+        Path::normalise('/v1/payments/%2e%2e/secret'),
+        'and escapes are still decoded before anything compares them',
+    );
+    assertSame('global/seskey', Path::key('Global/SesKey'), 'a fixed name still folds');
+
+    // The literal half of the path is still matched without regard to case.
+    $router = new Router();
+    $seen = null;
+    $router->get('v1/payment-requests/{id}', static function (string $id) use (&$seen): void {
+        $seen = $id;
+    });
+
+    assertTrue(
+        $router->dispatch('GET', 'V1/Payment-Requests/PAYREQ-MiXeD-Case'),
+        'a differently-cased literal segment still routes',
+    );
+    assertSame('PAYREQ-MiXeD-Case', $seen, 'and the argument arrives untouched');
+});
+
+/**
+ * The front controller has to be able to find its own classes.
+ *
+ * index.php is the one file the autoloader cannot load, so it loads the
+ * autoloader — and every test in this suite bootstraps that itself, which is
+ * exactly why a missing require here would go unnoticed until deployment,
+ * where it 500s every route below /session.
+ */
+check('the front controller bootstraps the autoloader', static function (): void {
+    $front = (string) file_get_contents(dirname(__DIR__) . '/index.php');
+
+    assertTrue(
+        str_contains($front, "require __DIR__ . '/src/Autoload.php'"),
+        'index.php requires the autoloader',
+    );
+    // The lowercase-everything bug came back the moment someone needed a
+    // case-insensitive comparison and reached for the nearest variable.
+    assertTrue(
+        !str_contains($front, 'strtolower($path)'),
+        'index.php does not fold the case of the whole path',
+    );
+    assertTrue(
+        str_contains($front, 'Routes::register'),
+        'index.php dispatches the product routes',
+    );
 });
 
 // ===========================================================================

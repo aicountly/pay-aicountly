@@ -45,6 +45,18 @@ final class Context
      */
     private static array $accessTypes = [];
 
+    /**
+     * The company's name, per Manage, for the session that asked.
+     *
+     * Kept HERE and nowhere else. Manage owns company names; Pay shows the one
+     * it was told on this request and has no table to put it in, which is the
+     * whole point — a name in a `pay_` column would be a copied master going
+     * stale the first time somebody renames a company in Manage.
+     *
+     * @var array<string, string>
+     */
+    private static array $names = [];
+
     private function __construct(
         public readonly int $cmpId,
         /** 0 = all branches. Narrows Pay's own rows; never invented. */
@@ -142,7 +154,33 @@ final class Context
         }
 
         self::$accessTypes[$key] = ManageAccess::forCompany($manage, $this->cmpId, $company);
+
+        $name = trim((string) ($company['cmp_name'] ?? $company['company_name'] ?? $company['name'] ?? ''));
+        if ($name !== '') {
+            self::$names[$key] = $name;
+        }
+
         self::$verified[$key] = true;
+    }
+
+    /**
+     * What Manage calls this company, or null when it did not say.
+     *
+     * Null is answered honestly rather than with "Company 55": a screen that
+     * invents a name is a screen that will confidently show the wrong one.
+     */
+    public function companyName(Auth $auth): ?string
+    {
+        if ($auth->isMachine()) {
+            return null;
+        }
+
+        $key = $this->cmpId . ':' . $auth->fingerprint();
+        if (!array_key_exists($key, self::$names) && !isset(self::$verified[$key])) {
+            $this->assertAllowed($auth);
+        }
+
+        return self::$names[$key] ?? null;
     }
 
     /**
@@ -180,6 +218,7 @@ final class Context
     {
         self::$verified = [];
         self::$accessTypes = [];
+        self::$names = [];
     }
 
     /**

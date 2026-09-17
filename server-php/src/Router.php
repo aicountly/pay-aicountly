@@ -70,7 +70,12 @@ final class Router
                     $args[] = $segments[$i];
                     continue;
                 }
-                if ($expected !== $segments[$i]) {
+                // A LITERAL segment is matched without regard to case, so
+                // /V1/Payments reaches the same handler as /v1/payments. A
+                // dynamic one is taken exactly as it arrived (above), because
+                // ids and public link tokens are case-sensitive and folding
+                // them is how every by-id route comes to answer 404.
+                if (strcasecmp($expected, $segments[$i]) !== 0) {
                     $matched = false;
                     break;
                 }

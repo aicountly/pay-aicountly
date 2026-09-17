@@ -88,7 +88,13 @@ final class SettingsController extends Controller
                 'has_name'     => $auth->hasDisplayName(),
                 'is_owner'     => $ctx->isOwner($auth),
             ],
-            'company' => ['cmp_id' => $ctx->cmpId, 'bo_id' => $ctx->boId],
+            'company' => [
+                'cmp_id' => $ctx->cmpId,
+                'bo_id'  => $ctx->boId,
+                // Read live from Manage on this request and passed straight
+                // through. Pay has nowhere to keep it and wants nowhere.
+                'name'   => $ctx->companyName($auth),
+            ],
             'permissions' => $granted,
             'menu'        => $menu,
             'dashboards'  => $dashboards,

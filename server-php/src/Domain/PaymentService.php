@@ -314,6 +314,12 @@ final class PaymentService
             }
             if ($newStatus === States::ATTEMPT_FAILED || $newStatus === States::ATTEMPT_CANCELLED) {
                 $updates['failed_at'] = $now;
+                // Money that never moved is not awaiting settlement. The column
+                // defaults to PENDING because that is right for an attempt in
+                // flight, and leaving it there once the attempt has failed puts
+                // "Settlement: Pending" beside "Failed" on every screen that
+                // shows both — which reads as money on its way that is not.
+                $updates['settlement_status'] = 'NOT_APPLICABLE';
             }
 
             // A provider that reports a different amount than we asked for is
