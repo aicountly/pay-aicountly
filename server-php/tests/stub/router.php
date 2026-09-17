@@ -1,6 +1,7 @@
 <?php
 /**
- * A stand-in for Manage and for the source apps, for the integration tests.
+ * A stand-in for Manage, for the source apps and for the AICOUNTLY portal, for
+ * the integration tests and for running the whole stack on a laptop.
  *
  * It answers the handful of endpoints Pay actually calls, in the envelope shape
  * the real contracts document, and records every request it received so a test
@@ -45,6 +46,45 @@ $control = is_file($controlFile) ? (json_decode((string) file_get_contents($cont
 if (!empty($control['path']) && str_contains($path, (string) $control['path'])) {
     http_response_code((int) ($control['status'] ?? 500));
     echo json_encode(['error' => ['code' => 'stub_forced', 'message' => 'Forced failure for test']]);
+    exit;
+}
+
+// --- Portal -----------------------------------------------------------------
+/**
+ * The two auth endpoints, so the real API and the real React app can be run
+ * together without reaching my.aicountly.com.
+ *
+ * The session key encodes the user uuid it stands for — `stub.<uuid>` — because
+ * every permission test in this suite turns on WHICH user is calling, and a
+ * fixed uuid would make the stub able to play only one of them. It is a
+ * development fixture and nothing more: PORTAL_AUTH_BASE points at the real
+ * portal everywhere else, and a key minted here is worthless there.
+ */
+if (str_contains($path, '/seskey')) {
+    $authToken = '';
+    if (preg_match('/Bearer\s+(.+)/i', $headers['authorization'] ?? '', $m) === 1) {
+        $authToken = trim($m[1]);
+    }
+    $uuid = $authToken !== '' ? $authToken : 'demo-owner';
+    echo json_encode(['status' => 1, 'ses_key' => 'stub.' . $uuid, 'expires_in' => 900]);
+    exit;
+}
+
+if (str_contains($path, '/validatesession')) {
+    $sesKey = '';
+    if (preg_match('/Bearer\s+(.+)/i', $headers['authorization'] ?? '', $m) === 1) {
+        $sesKey = trim($m[1]);
+    }
+    if (!str_starts_with($sesKey, 'stub.')) {
+        http_response_code(401);
+        echo json_encode(['status' => 0, 'message' => 'Not a stub session key.']);
+        exit;
+    }
+    echo json_encode([
+        'status' => 1,
+        'data' => ['uuid_aictly' => substr($sesKey, 5), 'name' => 'Stub User'],
+        'uuid_aictly' => substr($sesKey, 5),
+    ]);
     exit;
 }
 

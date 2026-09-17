@@ -15,6 +15,9 @@ DB_PASS="${TEST_DB_PASS:-pay_test}"
 DB_HOST="${TEST_DB_HOST:-127.0.0.1}"
 DB_PORT="${TEST_DB_PORT:-5432}"
 STUB_PORT="${STUB_PORT:-8794}"
+# Only used to fill in the .env this script writes, so that tests/devstack.sh
+# can bring the same file up as a working local stack without rewriting it.
+WEB_PORT="${WEB_PORT:-5199}"
 
 cat > "$ROOT/.env" <<ENVEOF
 APP_ENV=local
@@ -38,6 +41,10 @@ PAY_CALLBACK_SIGNING_SECRET=test-callback-secret
 PAY_ENCRYPTION_KEY=1:3q2+796tvu/erb7v3q2+796tvu/erb7v3q2+796tvu8=
 # The mock provider exists only for these tests and refuses to run in production.
 MOCK_PROVIDER_ENABLED=1
+# The stub plays the portal too, so the local stack needs no my.aicountly.com.
+PORTAL_AUTH_BASE=http://127.0.0.1:$STUB_PORT
+CORS_ALLOWED_ORIGINS=http://127.0.0.1:$WEB_PORT,http://localhost:$WEB_PORT
+PAY_PUBLIC_BASE=http://127.0.0.1:$WEB_PORT
 ENVEOF
 
 php "$ROOT/bin/migrate.php" > /dev/null
